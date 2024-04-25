@@ -100,6 +100,11 @@ Formatting is done with `format-time-string'.  See the function for details."
   :group 'trashed
   :type 'hook)
 
+(defcustom trashed-verbose nil
+  "Non-nil means display display messages when deleting files."
+  :group 'trashed
+  :type 'boolean)
+
 ;;; Faces
 
 (defgroup trashed-faces nil
@@ -654,6 +659,8 @@ RESET-COL, if t, means reset current column position to the default as well."
 
 (defun trashed-safe-delete-file (file)
   "Delete FILE safely."
+  (when trashed-verbose
+    (message "Deleting %s..." file))
   (cl-assert (file-in-directory-p file trashed-trash-dir))
   (delete-file file))
 
