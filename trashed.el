@@ -354,6 +354,15 @@ This is automatically set in `trashed-readin'.")
                    (or ret "0")))
     (_ sizestr)))
 
+(defun trashed-date-string (time)
+  "Return date string of Lisp timestamp TIME for the deletion date column.
+The string consists of the high and low 16 bits of the seconds since the
+epoch, so that it can be sorted as a string.  TIME can be in any Lisp
+timestamp form, including the integer and (TICKS . HZ) forms returned
+when `current-time-list' is nil."
+  (let ((seconds (floor (float-time time))))
+    (format "%07d %05d" (ash seconds -16) (logand seconds #xffff))))
+
 (defun trashed-format-date-string (datestr)
   "Format date string DATESTR based on `trashed-date-format'."
   (string-match "\\([0-9]+\\) \\([0-9]+\\)" datestr)
@@ -451,9 +460,6 @@ are supported."
                     ;;  (100nsecs from 1/1/1601 to secs from 1/1/1970)
                     datenum (floor (/ (- datewin 116444736000000000)
                                       10000000))
-                    ;; Conversion to (HIGH . LOW) format
-                    datenum (list (lsh datenum -16)
-                                  (logand datenum (1- (lsh 1 16))))
                     pathstr (replace-regexp-in-string
                              "\\\\" "/" (decode-coding-string
                                          (buffer-substring (+ 1 pathpos)
@@ -506,8 +512,7 @@ FILE and ATTRS are file and attributes of the trash file."
                   (let ((type (substring (nth 8 attrs) 0 1)) ;; type
                         (size (number-to-string (or sizenum ;; windows-nt
                                                     (nth 7 attrs)))) ;; size
-                        (date (format "%07d %05d"
-                                      (car datenum) (cadr datenum)))
+                        (date (trashed-date-string datenum))
                         (name (propertize pathstr 'mouse-face 'highlight)))
                     ;; Add up trash can size
                     (setq trashed-trash-can-size (+ trashed-trash-can-size
@@ -764,8 +769,7 @@ CONDITION must consist of `<'(before) or `>'(after), and `N' days ago.
 For example, `<365' means tag all files deleted before the day 1 year ago,
 `>30' means tag all files deleted after the day 1 month ago,
 `>1' means tag all files deleted today."
-  (let* ((now-list (current-time))
-         (now (+ (ash (car now-list) 16) (cadr now-list)))
+  (let* ((now (floor (float-time)))
          (n 0)
          comp past datestr date)
     (or condition
@@ -779,9 +783,10 @@ For example, `<365' means tag all files deleted before the day 1 year ago,
             past (- now (* 60 60 24 (- (string-to-number
                                         (match-string 2 condition))
                                        (if (eq comp '<) 0 1))))
-            past (apply 'encode-time (append '(0 0 0) ;; remove hour/min/sec
-                                             (cdddr (decode-time past))))
-            past (+ (ash (car past) 16) (cadr past)))
+            past (floor (float-time
+                         (apply 'encode-time
+                                (append '(0 0 0) ;; remove hour/min/sec
+                                        (cdddr (decode-time past)))))))
       (save-excursion
         (trashed-reset-vpos)
         (while (tabulated-list-get-id)
